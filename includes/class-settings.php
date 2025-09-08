@@ -7,6 +7,7 @@ class Settings {
         add_action('admin_menu', [__CLASS__, 'add_menu_page']);
         add_action('admin_init', [__CLASS__, 'register_settings']);
         add_action('admin_post_' . MC_API_ACTIONS_SLUG, [__CLASS__, 'handle_test_connection']);
+        add_action('admin_menu', [__CLASS__, 'add_submenu_page']);
     }
 
     public static function add_menu_page(){
@@ -70,12 +71,15 @@ class Settings {
     public static function register_settings(){
         register_setting('mc_api_settings_group', 'mailchimp_api_key', ['sanitize_callback' => [__CLASS__, 'mc_sanitize_api_key']]);
         register_setting('mc_api_settings_group', 'mailchimp_list_id', ['sanitize_callback' => [__CLASS__, 'mc_sanitize_list_id']]);
+        register_setting('mc_api_settings_group', 'mailchimp_double_optin', ['sanitize_callback' => [__CLASS__, 'mc_sanitize_yes_no']]);
+        register_setting('mc_api_settings_group', 'mailchimp_logging_enabled', ['sanitize_callback' => [__CLASS__, 'mc_sanitize_yes_no']]);
 
         add_settings_section('mc_api_credentials_section', 'Mailchimp Credentials', null, MC_API_SETTINGS_SLUG);
         
         add_settings_field('mc_api_key', 'API key', [__CLASS__, 'mc_api_key_callback'], MC_API_SETTINGS_SLUG, 'mc_api_credentials_section');
         add_settings_field('mc_list_id', 'List Id', [__CLASS__, 'mc_list_id_callback'], MC_API_SETTINGS_SLUG, 'mc_api_credentials_section');
-
+        add_settings_field('mc_double_optin', 'Double Opt-in', [__CLASS__, 'mc_double_optin_callback'], MC_API_SETTINGS_SLUG, 'mc_api_credentials_section');
+        add_settings_field('mc_logging_enabled', 'Logging Enabled', [__CLASS__, 'mc_logging_enabled_callback'], MC_API_SETTINGS_SLUG, 'mc_api_credentials_section');
     }
 
     public static function mc_sanitize_api_key($input){
@@ -158,7 +162,47 @@ class Settings {
         if($mc_src !== 'options'){
             echo "<p>Override by removing constants and env vars.</p>";
         }
+    }
 
+    public static function mc_sanitize_yes_no($value){
+        $value = is_string($value) ? strtolower(trim($value)) : '';
+        return in_array($value, ['yes', 'no'], true) ? $value : 'yes';
+    }
+
+    public static function mc_double_optin_callback(){
+        $checked = get_option('mailchimp_double_optin', 'yes'); 
+        $checked_yes = $checked === 'yes' ? 'checked' : '';
+        $checked_no = $checked === 'no' ? 'checked' : '';
+
+        echo "<fieldset>";
+
+        echo "<label for='mc_double_optin_yes'>";
+        echo "<input type='radio' id='mc_double_optin_yes' name='mailchimp_double_optin' value='yes' {$checked_yes}/>";
+        echo "Yes - send confirmation email (recommended)</label>";
+        echo "<br/>";
+        echo "<label for='mc_double_optin_no'>";
+        echo "<input type='radio' id='mc_double_optin_no' name='mailchimp_double_optin' value='no' {$checked_no}/>";
+        echo "No - subscribe immediately</label>";
+        
+        echo "</fieldset>";
+    }
+    
+    public static function mc_logging_enabled_callback(){
+        $checked = get_option('mailchimp_logging_enabled', 'yes'); 
+        $checked_yes = $checked === 'yes' ? 'checked' : '';
+        $checked_no = $checked === 'no' ? 'checked' : '';
+
+        echo "<fieldset>";
+
+        echo "<label for='mc_logging_enabled_yes'>";
+        echo "<input type='radio' id='mc_logging_enabled_yes' name='mailchimp_logging_enabled' value='yes' {$checked_yes}/>";
+        echo "Yes</label>";
+        echo "<br/>";
+        echo "<label for='mc_logging_enabled_no'>";
+        echo "<input type='radio' id='mc_logging_enabled_no' name='mailchimp_logging_enabled' value='no' {$checked_no}/>";
+        echo "No</label>";
+        
+        echo "</fieldset>";
     }
 
     public static function handle_test_connection(){
@@ -283,5 +327,216 @@ class Settings {
             'list_id' => '',
             'src' => ''
         ];
+    }
+
+    public static function get_credentials(){
+        return self::credentials_resolver();
+    }
+
+    public static function add_submenu_page(){
+        add_submenu_page(   
+                            'options-general.php',
+                            'MailChimp Reports',
+                            'MC Reports',
+                            'manage_options',
+                            'mc-api-reports',
+                            [__CLASS__, 'render_mc_reports_submenu'],
+                        );
+    }
+
+    public static function render_mc_reports_submenu(){
+        if(!current_user_can('manage_options'))
+            wp_die('Not Allowed');
+
+        if(isset($_GET['mc_api_reports_nonce']) && !wp_verify_nonce( $_GET['mc_api_reports_nonce'], 'mc_api_reports'))
+            wp_die('Invalid Request');
+
+        $event_type = isset($_GET['event_type']) ? sanitize_key($_GET['event_type']) : '';
+        if(!in_array($event_type, ['subscribe', 'error', 'webhook_unsub', 'webhook_cleaned', 'test' ]))
+            $event_type='';
+        $http_code = isset($_GET['http_code']) ? (absint)($_GET['http_code']) : 0;
+        $from_date = isset($_GET['from_date']) ? sanitize_text_field($_GET['from_date']) : '';
+        $to_date = isset($_GET['to_date']) ? sanitize_text_field($_GET['to_date']) : '';
+        $page = max(1,(int)($_GET['paged'] ?? 1)); 
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'mc_api_events';
+        $where = ['1=1'];
+        $params = [];
+        $rows_per_page = 20;
+
+        if($event_type){
+            $where[] = 'event_type=%s';
+            $params[] = $event_type;
+        }
+
+        if($http_code){
+            $where[] = 'http_code=%d';
+            $params[] = $http_code;
+        }
+
+        if($from_date){
+            $where[] = 'ts_utc>=%s';
+            $params[] = $from_date . ' 00:00:00';
+        }
+
+        if($to_date){
+            $where[] = 'ts_utc<=%s';
+            $params[] = $to_date . ' 23:59:59';
+        }
+        
+        $where_sql = implode(' AND ', $where);
+
+        $sql_total = "SELECT count(*) 
+                      FROM {$table} 
+                      WHERE {$where_sql}";
+
+        if(count($params) > 0)              
+            $total_rows = (int)$wpdb->get_var($wpdb->prepare($sql_total, $params));
+        else
+            $total_rows = (int)$wpdb->get_var($sql_total);
+
+        $total_pages = max(1, (int)ceil($total_rows/$rows_per_page));
+        $offset = ($page-1) * $rows_per_page;
+        
+        $sql_rows = "SELECT id, ts_utc, event_type, http_code, endpoint, email_hash, message 
+                FROM {$table} WHERE {$where_sql}
+                ORDER BY id DESC
+                LIMIT %d OFFSET %d";
+
+        //Export CSV
+        if(isset($_GET['mc_export']) && $_GET['mc_export'] === '1'){
+            $rows_csv = $wpdb->get_results($wpdb->prepare($sql_rows, array_merge($params, [5000, 0])),ARRAY_A);
+            $date = date('Y-m-d');
+            $filename = "mc-api-events-{$date}.csv";
+            nocache_headers();
+            header('Content-Type: text/csv; charset=utf-8');
+            header("Content-Disposition: attachment; filename={$filename}");
+            header("Pragma: no-cache");
+            header("Expires: 0");
+
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['ts_utc','event_type','http_code','endpoint','email_hash','message']);
+
+            foreach ($rows_csv as $row){
+                fputcsv($out,[ 
+                        $row['ts_utc'],
+                        $row['event_type'],
+                        $row['http_code'],
+                        $row['endpoint'],
+                        $row['email_hash'],
+                        $row['message']
+                ]);
+            }
+
+            fclose($out);
+            exit;
+        }
+
+        $rows = $wpdb->get_results($wpdb->prepare($sql_rows, array_merge($params, [$rows_per_page, $offset])),ARRAY_A);
+        //Form
+        echo "<form method='GET'>";
+
+        echo "<input type='hidden' name='page' value='mc-api-reports' />";
+        wp_nonce_field('mc_api_reports', 'mc_api_reports_nonce');
+
+        echo "<label for='event_type' >Event Type</label>";
+        echo "<select id='event_type' name='event_type' >";
+
+        $select_opts = [
+            '' => 'All',
+            'subscribe' => 'Subscribe',
+            'error' => 'Error',
+            'webhook_unsub' => 'webhook_unsub',
+            'webhook_cleaned' => 'webhook_cleaned',
+            'test' => 'Test',
+        ];
+
+        foreach ($select_opts as $value => $label) {
+            $selected = $event_type === $value ? 'selected' : '';
+            echo "<option value='{$value}' {$selected}>{$label}</option>";
+        }
+
+        echo "</select>";
+        echo "<br>";
+
+        echo "<label for='http_code' >HTTP Code</label>";
+        echo "<input id='http_code' type='number' name='http_code' value='" . esc_attr($http_code) . "' />";
+        echo "<br>";
+        
+        echo "<label for='from_date' >From Date</label>";
+        echo "<input id='from_date' type='date' name='from_date' value='" . esc_attr($from_date) . "' />";
+        echo "<br>";
+
+        echo "<label for='to_date' >To Date</label>";
+        echo "<input id='to_date' type='date' name='to_date' value='" . esc_attr($to_date) . "' />";
+        echo "<br>";
+
+        echo "<button type='submit'>Submit</button>";
+        echo "<br>";
+
+        echo "<button type='submit' name='mc_export' value='1'>Export CSV</button>";
+        echo "<br>";
+
+        echo "</form>";
+
+        //Display table
+        $first = max($offset+1,0);
+        $last = min($offset + $rows_per_page, $total_rows);
+        if($total_rows > 0 )
+            echo "<p>Show {$first}-{$last} of {$total_rows} results</p>";
+
+        echo "<table class='widefat fixed striped'>";
+        echo "<thead>";
+        echo "<tr>";
+        echo "<th>ID</th>";
+        echo "<th>Timestamp</th>";
+        echo "<th>Event Type</th>";
+        echo "<th>Http Code</th>";
+        echo "<th>Endpoint</th>";
+        echo "<th>Email(hashed)</th>";
+        echo "<th>Message</th>";
+        echo "</tr>";
+        echo "</thead>";
+
+        echo "<tbody>";
+        if($rows){
+            
+            foreach ($rows as $event) {
+                echo "<tr>";
+                echo "<td>" . esc_html($event['id']) . "</td>";
+                echo "<td>" . esc_html($event['ts_utc']) . "</td>";
+                echo "<td>" . esc_html($event['event_type']) . "</td>";
+                echo "<td>" . esc_html($event['http_code']) . "</td>";
+                echo "<td>" . esc_html($event['endpoint']) . "</td>";
+                echo "<td>" . esc_html($event['email_hash']) . "</td>";
+                echo "<td>" . esc_html($event['message']) . "</td>";
+                echo "</tr>";
+            }
+        }else{
+            echo "<tr>";
+            echo "<td colspan='7'>" . "No events found" . "</td>";
+            echo "</tr>";
+
+        }
+
+        echo "</tbody>";
+        echo "</table>";
+
+        //Pagination
+        $base_url = menu_page_url('mc-api-reports', false);
+        if ($total_pages > 1){
+            echo '<div class="tablenav"><div class="tablenav-pages">';
+            echo paginate_links([
+                'base'      => add_query_arg('paged','%#%', $base_url),
+                'format'    => '',
+                'prev_text' => '«',
+                'next_text' => '»',
+                'total'     => $total_pages,
+                'current'   => $page,
+            ]);
+            echo '</div></div>';
+        }
+
     }
 }

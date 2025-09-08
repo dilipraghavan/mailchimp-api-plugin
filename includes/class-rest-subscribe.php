@@ -56,11 +56,58 @@ class Rest_Subscribe{
         $email = $request->get_param('email');
         $consent = $request->get_param('consent');
 
-        return new WP_REST_Response([
-            'success' => true,
-            'message' => 'Recieved. We will process your subscription.',
-            'data' => ['email_hash' => md5(strtolower(trim($email)))]
-        ],200);
+        if(!$consent){
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => 'Consent required.',
+            ]);
+        }
+
+        $cred = Settings::get_credentials();
+        $api_key = $cred['api_key'];
+        $list_id = $cred['list_id'];
+        
+        $client = new Mailchimp_Client($api_key, $list_id);
+        
+        $double_optin = get_option('mailchimp_double_optin', 'yes');
+        $status = $double_optin === 'yes' ? 'pending' : 'subscribed';
+        $res = $client->upsert_member($email, [], $status);
+
+        if(isset($res['raw'])){
+            error_log('raw :' . print_r($res['raw'],true));
+        }else{
+            error_log('raw not set');
+        }
+
+        if($res['ok']){
+            Logger::add([
+                'event_type' => 'subscribe',
+                'http_code' => (int)($res['code'] ?? 200),
+                'endpoint' => 'mc-api/v1/subscribe',
+                'email_hash' => md5(strtolower(trim($email))),
+                'message' => $res['msg'] ?? 'ok',
+                'meta' => ['src' => 'rest'],
+            ]);
+            return new WP_REST_Response([
+                'success' => true,
+                'message' => $res['msg'],
+            ],200);
+        }else{
+            Logger::add([
+                'event_type' => 'error',
+                'http_code' => (int)($res['code'] ?? 0),
+                'endpoint' => 'mc-api/v1/subscribe',
+                'email_hash' => md5(strtolower(trim($email))),
+                'message' => $res['msg'] ?? 'error',
+                'meta' => ['src' => 'rest'],
+            ]);
+            $code = $res['code'] ?: 500;
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => $res['msg'],
+            ], $code);
+        }
+
     }
 
     public static function verify_nonce($request){

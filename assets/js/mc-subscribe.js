@@ -48,13 +48,17 @@ document.addEventListener("DOMContentLoaded", () => {
         },
         body: JSON.stringify(data),
       });
+
       const payload = await res.json();
-      if (res.ok && payload?.success) {
-        msgElement.textContent = window?.MC_API_CFG?.msgs?.ok || "Subscribed!";
+      if (res.ok) {
+        msgElement.textContent = payload.message
+          ? payload.message
+          : window?.MC_API_CFG?.msgs?.ok || "Subscribed!";
         form.reset();
       } else {
-        msgElement.textContent =
-          window?.MC_API_CFG?.msgs?.genericError || "Error";
+        msgElement.textContent = payload.message
+          ? payload.message
+          : window?.MC_API_CFG?.msgs?.genericError || "Error";
       }
     } catch (e) {
       msgElement.textContent =

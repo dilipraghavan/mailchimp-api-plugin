@@ -17,6 +17,10 @@
 namespace MC_API;
 if(! defined('ABSPATH')) exit;
 
+
+//37f07e882635cb314fe1852dc0632302-us20
+//e4d500a9e0
+
 define('MC_API_PLUGIN_DIR_PATH', plugin_dir_path(__FILE__ ));
 define('MC_API_PLUGIN_URL_PATH', plugin_dir_url(__FILE__ ));
 define('MC_API_PLUGIN_VERSION', '0.1.0');
@@ -30,6 +34,8 @@ register_deactivation_hook( __FILE__, __NAMESPACE__ . '\mc_api_deactivate');
 include_once(MC_API_PLUGIN_DIR_PATH . '/includes/class-bootstrap.php');
 include_once(MC_API_PLUGIN_DIR_PATH . '/includes/class-settings.php');
 include_once(MC_API_PLUGIN_DIR_PATH . '/includes/class-subscribe-shortcode.php');
+include_once(MC_API_PLUGIN_DIR_PATH . '/includes/class-mailchimp-client.php');
+include_once(MC_API_PLUGIN_DIR_PATH . '/includes/class-logger.php');
 include_once(MC_API_PLUGIN_DIR_PATH . '/includes/class-rest-subscribe.php');
 include_once(MC_API_PLUGIN_DIR_PATH . '/includes/class-admin-post-subscribe.php');
 
@@ -40,7 +46,30 @@ Rest_Subscribe::init();
 Admin_Post_Subscribe::init();
 
 function mc_api_activate(){
+    global $wpdb;
+    $table = $wpdb->prefix . 'mc_api_events';
+    $charset = $wpdb->get_charset_collate();
 
+    $sql = "CREATE TABLE {$table} (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        ts_utc DATETIME NOT NULL,
+        event_type VARCHAR(32) NOT NULL,    /* subscribe, error, webhook_unsub, webhook_cleaned, test */
+        http_code SMALLINT UNSIGNED NULL,
+        endpoint VARCHAR(190) NOT NULL,
+        email_hash CHAR(32) NULL,           /* md5(strtolower(email)) ONLY */
+        message VARCHAR(255) NOT NULL,
+        corr_id CHAR(36) NULL,              /* optional correlation id */
+        meta LONGTEXT NULL,                 /* JSON blob (no PII) */
+        PRIMARY KEY  (id),
+        KEY idx_ts (ts_utc),
+        KEY idx_type (event_type),
+        KEY idx_code (http_code),
+        KEY idx_email (email_hash)
+    ) {$charset};";
+
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta($sql);
+    add_option('mc_api_events_db_version', '1'); // for future migrations
 }
  
 
