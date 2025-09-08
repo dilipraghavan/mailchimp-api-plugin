@@ -18,8 +18,6 @@ namespace MC_API;
 if(! defined('ABSPATH')) exit;
 
 
-//37f07e882635cb314fe1852dc0632302-us20
-//e4d500a9e0
 
 define('MC_API_PLUGIN_DIR_PATH', plugin_dir_path(__FILE__ ));
 define('MC_API_PLUGIN_URL_PATH', plugin_dir_url(__FILE__ ));
