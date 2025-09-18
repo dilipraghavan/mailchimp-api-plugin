@@ -246,36 +246,9 @@ class Settings {
 
         $response = $client->get("/lists/{$list_id}");
 
-        $is_error = isset($response['error']) && $response['error'] !== null;
-        $notice = '';
-
-        if($is_error){
-            $error_message = $response['error'];
-            if(defined('WP_DEBUG') && WP_DEBUG){
-                error_log('[MC_API]Network error: ' . $error_message);
-            }
-
-            $notice = ['type' => 'error', 'msg' => "Network error contacting mailchimp."];
-            set_transient('mc_api_notice', $notice, 30 );
-            wp_safe_redirect(admin_url('options-general.php?page='. MC_API_SETTINGS_SLUG));
-            exit;
-        }
-
-        $response_code = $response['code'];
-        
-
-        switch($response_code){
-            case 200:
-                $notice = ['type' => 'success', 'msg' => 'Mailchimp connected successfully.'];
-                break;
-            case 401:  
-                $notice = ['type' => 'error', 'msg' => 'Unauthorized: Invalid API key.'];
-                break; 
-            case 404:  
-                $notice = ['type' => 'error', 'msg' => 'List not found. Please check List id.'];
-                break; 
-            default:
-                $notice = ['type' => 'error', 'msg' => "Unexpected error. (HTTP {$response_code})"];
+        $notice = ['type' => 'error', 'msg' => $response['msg']];
+        if ($response['ok']) {
+            $notice = ['type' => 'success', 'msg' => 'Mailchimp connected successfully.'];
         }
         
         set_transient('mc_api_notice', $notice, 30 );

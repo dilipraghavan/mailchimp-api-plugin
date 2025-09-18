@@ -62,99 +62,79 @@ class Mailchimp_Client{
         ];
          
         $response = $this->request('PUT', $endpoint, $body );
-        if($response['error'] instanceof WP_Error){
-            return [    
-                'ok'=> false,
-                'code' => 0,
-                'msg' => 'Network error, please try again later.',
-                'raw'=> null
-            ];
-        }
+        $norm_res = $this->get_normalized_response($response);
+        
+        if($norm_res['ok']){
+            $status = isset($norm_res['raw']['status']) ? $norm_res['raw']['status'] : ''; 
+            $norm_res['msg'] = $status === 'pending' ? 'Please confirm via email' : 'Subscribed successfully';
+        } else if ($norm_res['code'] === 400){
+            $title  = isset($norm_res['raw']['title'])  ? (string) $norm_res['raw']['title']  : '';
+            $detail = isset($norm_res['raw']['detail']) ? (string) $norm_res['raw']['detail'] : '';
 
-        error_log('Response code: ' . $response['code'] );
-        switch(true){
-            case $response['code'] === 200:
-            case $response['code'] === 201:
-                $status = isset($response['json']['status']) ? $response['json']['status'] : ''; 
-                $norm_res = [
-                    'ok'=> true,
-                    'code' => $response['code'],
-                    'msg' => $status === 'pending' ? 'Please confirm via email' : 'Subscribed successfully',
-                    'raw'  => $response['json'],
-                ];
-                break;
-            case $response['code'] === 400:
-
-                $title  = isset($response['json']['title'])  ? (string) $response['json']['title']  : '';
-                $detail = isset($response['json']['detail']) ? (string) $response['json']['detail'] : '';
-
-                $member_exists =
-                    (stripos($title, 'member exists')  !== false) ||
-                    (stripos($detail, 'member exists') !== false) ||
-                    (stripos($detail, 'already a list member') !== false) ||
-                    (stripos($detail, 'is already')    !== false);
-                if($member_exists){
-                    $norm_res = [
-                        'ok'=> true,
-                        'code' => 200,
-                        'msg' => 'You are already in the list',
-                        'raw'  => $response['json'],
-                    ];
-                }else{
-                    $norm_res = [
-                        'ok'=> false,
-                        'code' => $response['code'],
-                        'msg' => 'Please check your input',
-                        'raw'  => $response['json'],
-                    ];
-                }
-                break;
-            case $response['code'] === 401:
-                $norm_res = [
-                        'ok'=> false,
-                        'code' => $response['code'],
-                        'msg' => 'Credentials issue—contact site admin.',
-                        'raw'  => $response['json'],
-                ];
-                break;
-            case $response['code'] === 404:
-                $norm_res = [
-                        'ok'=> false,
-                        'code' => $response['code'],
-                        'msg' => 'List not found—check settings.',
-                        'raw'  => $response['json'],
-                ];
-                break;
-            case $response['code'] === 429:
-                $retry_after = isset($response['headers']['retry-after']) ? $response['headers']['retry-after'] : null;
-                $norm_res = [
-                        'ok'=> false,
-                        'code' => $response['code'],
-                        'msg' => 'Too many requests—try again shortly.',
-                        'raw'  => $response['json'],
-                        'retry_after' => $retry_after
-                ];
-                break;
-            case ($response['code'] >=500 && $response['code'] <=599):
-                $norm_res = [
-                        'ok'=> false,
-                        'code' => $response['code'],
-                        'msg' => 'Service issue—please try again later.',
-                        'raw'  => $response['json'],
-                ];
-                break;
-            default:
-                $norm_res = [
-                        'ok'=> false,
-                        'code' => $response['code'],
-                        'msg' => 'Unexpected error.',
-                        'raw'  => $response['json'],
-                ];
-
+            $member_exists =
+                (stripos($title, 'member exists') !== false) ||
+                (stripos($detail, 'member exists') !== false) ||
+                (stripos($detail, 'already a list member') !== false) ||
+                (stripos($detail, 'is already') !== false);
+            
+            if($member_exists){
+                $norm_res['ok'] = true;
+                $norm_res['code'] = 200;
+                $norm_res['msg'] = 'You are already in the list';
+            } else {
+                $norm_res['msg'] = 'Please check your input';
+            }
         }
 
         return $norm_res;
         
+    }
+
+    private function get_normalized_response($response) {
+        $norm_res = [
+            'ok' => false,
+            'code' => null,
+            'msg' => null,
+            'raw' => null
+        ];
+
+        if(is_wp_error($response['error'])){
+            $norm_res['msg'] = 'Network error, please try again later.';
+            if(defined('WP_DEBUG') && WP_DEBUG){
+                error_log('[MC_API]Network error: ' . $response['error']->get_error_message());
+            }
+            return $norm_res;
+        }
+
+        $norm_res['code'] = $response['code'];
+        $norm_res['raw'] = $response['json'];
+
+        switch($norm_res['code']){
+            case 200:
+            case 201:
+                $norm_res['ok'] = true;
+                $norm_res['msg'] = 'Request successful.';
+                break;
+            case 400:
+                $norm_res['msg'] = 'A general input error occurred.';
+                break;
+            case 401:  
+                $norm_res['msg'] = 'Unauthorized: Invalid API key.';
+                break; 
+            case 404:  
+                $norm_res['msg'] = 'Resource not found.';
+                break; 
+            case 429:
+                $norm_res['msg'] = 'Too many requests—try again shortly.';
+                break;
+            case ($norm_res['code'] >= 500 && $norm_res['code'] <= 599):
+                $norm_res['msg'] = 'Service issue—please try again later.';
+                break;
+            default:
+                $norm_res['msg'] = "An unexpected error occurred. (HTTP {$norm_res['code']})";
+        }
+
+        return $norm_res;
     }
 
     private function extract_datacenter(){
@@ -207,7 +187,8 @@ class Mailchimp_Client{
     }
 
     public function get($endpoint) {
-        return $this->request('GET', $endpoint);
+        $response  = $this->request('GET', $endpoint);
+        return $this->get_normalized_response($response);
     }
 
 
