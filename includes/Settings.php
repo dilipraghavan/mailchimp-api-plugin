@@ -40,7 +40,7 @@ class Settings {
         echo "<div class='wrap'>";
         echo "<h1>Mailchimp API Integration</h1>";
         
-        $creds = Settings::credentials_resolver();
+        $creds = Credentials_Resolver::get_credentials();
         if($creds['src'] === 'constant'){
             echo "<p class='description'>Using constants from wp-config.php.</p>";
         }
@@ -115,7 +115,7 @@ class Settings {
     }
 
     public static function mc_api_key_callback(){
-        $creds = Settings::credentials_resolver();
+        $creds = Credentials_Resolver::get_credentials();
         $mc_api_key = isset($creds['api_key']) ? esc_attr($creds['api_key']) : '';
         $mc_src = $creds['src'];
         $disabled= $mc_src !== 'options' ? 'disabled' : '';
@@ -154,7 +154,7 @@ class Settings {
     }
 
     public static function mc_list_id_callback(){
-        $creds = Settings::credentials_resolver();
+        $creds = Credentials_Resolver::get_credentials();
         $mc_list_id = isset($creds['list_id']) ? esc_attr($creds['list_id']) : '';
         $mc_src = $creds['src'];
         $disabled= $mc_src !== 'options' ? 'disabled' : '';
@@ -221,7 +221,7 @@ class Settings {
             exit;
         }
 
-        $credentials = Settings::credentials_resolver();
+        $credentials = Credentials_Resolver::get_credentials();
 
         $list_id = $credentials['list_id'];
         $api_key = $credentials['api_key'];
@@ -234,16 +234,8 @@ class Settings {
             exit;
         }
 
-        $valid_key = true;
-        $data_center = '';
-        $hyphen_pos = strpos($api_key, '-');
-        if($hyphen_pos === false){
-            $valid_key = false;
-        }else{
-            $data_center = substr($api_key, $hyphen_pos+1);
-            if(strlen($data_center) <= 0)
-                $valid_key = false;
-        }
+        $client = new Mailchimp_Client($api_key, $list_id);
+        $valid_key = $client->is_valid_key();
 
         if(!$valid_key){
             $notice = ['type'=>'error' , 'msg'=>'Invalid API credentials.'];
@@ -252,23 +244,15 @@ class Settings {
             exit;
         }
 
-        $mc_url = "https://{$data_center}.api.mailchimp.com/3.0/lists/{$list_id}";
-        $mc_args = [
-            'headers' => [
-                'Authorization' => 'Basic ' . base64_encode( 'user:' . $api_key ),
-                'User-Agent' => 'mc-api-integration/0.1.0; ' . get_bloginfo('url'),
-            ],
-            'timeout' => 12,
-            'sslverify' => true
-        ];
-        $mc_response = wp_remote_get($mc_url, $mc_args);
-        $is_error = is_wp_error($mc_response);
+        $response = $client->get("/lists/{$list_id}");
+
+        $is_error = isset($response['error']) && $response['error'] !== null;
         $notice = '';
 
         if($is_error){
-
+            $error_message = $response['error'];
             if(defined('WP_DEBUG') && WP_DEBUG){
-                error_log('[MC_API]Network error: ' . $mc_response->get_error_message());
+                error_log('[MC_API]Network error: ' . $error_message);
             }
 
             $notice = ['type' => 'error', 'msg' => "Network error contacting mailchimp."];
@@ -277,7 +261,7 @@ class Settings {
             exit;
         }
 
-        $response_code = wp_remote_retrieve_response_code($mc_response);
+        $response_code = $response['code'];
         
 
         switch($response_code){
@@ -297,40 +281,6 @@ class Settings {
         set_transient('mc_api_notice', $notice, 30 );
         wp_safe_redirect(admin_url('options-general.php?page='. MC_API_SETTINGS_SLUG));
         exit;
-    }
-
-    private static function credentials_resolver(){
-        if(defined('MAILCHIMP_API_KEY') && defined('MAILCHIMP_LIST_ID')){
-            return [
-                'api_key' => trim(sanitize_text_field(MAILCHIMP_API_KEY)),
-                'list_id' => trim(sanitize_text_field(MAILCHIMP_LIST_ID)),
-                'src' => 'constant'
-            ];
-        }
-        if(getenv('MAILCHIMP_API_KEY') && getenv('MAILCHIMP_LIST_ID')){
-            return [
-                'api_key' => trim(sanitize_text_field(getenv('MAILCHIMP_API_KEY'))),
-                'list_id' => trim(sanitize_text_field(getenv('MAILCHIMP_LIST_ID'))),
-                'src' => 'env'
-            ];
-        }
-        if(get_option('mailchimp_api_key') && get_option('mailchimp_list_id')){
-            return [
-                'api_key' => trim(sanitize_text_field(get_option('mailchimp_api_key'))),
-                'list_id' => trim(sanitize_text_field(get_option('mailchimp_list_id'))),
-                'src' => 'options'
-            ];
-        }
-
-        return [
-            'api_key' => '',
-            'list_id' => '',
-            'src' => ''
-        ];
-    }
-
-    public static function get_credentials(){
-        return self::credentials_resolver();
     }
 
     public static function add_submenu_page(){

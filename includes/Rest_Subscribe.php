@@ -63,7 +63,7 @@ class Rest_Subscribe{
             ]);
         }
 
-        $cred = Settings::get_credentials();
+        $cred = Credentials_Resolver::get_credentials();
         $api_key = $cred['api_key'];
         $list_id = $cred['list_id'];
         

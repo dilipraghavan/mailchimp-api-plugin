@@ -206,5 +206,13 @@ class Mailchimp_Client{
         
     }
 
+    public function get($endpoint) {
+        return $this->request('GET', $endpoint);
+    }
+
+
+    public function is_valid_key() {
+        return !empty($this->datacenter);
+    }
 
 }
