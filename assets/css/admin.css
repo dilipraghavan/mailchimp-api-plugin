@@ -1,0 +1,21 @@
+.filter-controls {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  background-color: #f7f7f7;
+  border-radius: 5px;
+}
+.filter-controls label {
+}
+.filter-controls input[type="number"],
+.filter-controls input[type="date"],
+.filter-controls select {
+  padding: 5px;
+}
+
+.table th {
+  font-weight: bold;
+}

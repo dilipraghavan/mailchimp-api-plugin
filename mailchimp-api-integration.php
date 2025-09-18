@@ -47,13 +47,13 @@ function mc_api_activate(){
     $sql = "CREATE TABLE {$table} (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         ts_utc DATETIME NOT NULL,
-        event_type VARCHAR(32) NOT NULL,    /* subscribe, error, webhook_unsub, webhook_cleaned, test */
+        event_type VARCHAR(32) NOT NULL,    
         http_code SMALLINT UNSIGNED NULL,
         endpoint VARCHAR(190) NOT NULL,
-        email_hash CHAR(32) NULL,           /* md5(strtolower(email)) ONLY */
+        email_hash CHAR(32) NULL,           
         message VARCHAR(255) NOT NULL,
-        corr_id CHAR(36) NULL,              /* optional correlation id */
-        meta LONGTEXT NULL,                 /* JSON blob (no PII) */
+        corr_id CHAR(36) NULL,              
+        meta LONGTEXT NULL,                
         PRIMARY KEY  (id),
         KEY idx_ts (ts_utc),
         KEY idx_type (event_type),
@@ -63,7 +63,7 @@ function mc_api_activate(){
 
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta($sql);
-    add_option('mc_api_events_db_version', '1'); // for future migrations
+    add_option('mc_api_events_db_version', '1');  
 }
  
 

@@ -8,6 +8,19 @@ class Settings {
         add_action('admin_init', [__CLASS__, 'register_settings']);
         add_action('admin_post_' . MC_API_ACTIONS_SLUG, [__CLASS__, 'handle_test_connection']);
         add_action('admin_menu', [__CLASS__, 'add_submenu_page']);
+        add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_styles']);
+    }
+
+
+    public static function enqueue_styles($hook) {
+        if ('settings_page_mc-api-reports' === $hook || 'toplevel_page_mc-api-settings' === $hook) {
+            wp_enqueue_style(
+                'mc-api-admin-style',
+                MC_API_PLUGIN_URL_PATH . 'assets/css/admin.css',
+                [],
+                MC_API_PLUGIN_VERSION
+            );
+        }
     }
 
     public static function add_menu_page(){
@@ -256,7 +269,7 @@ class Settings {
         $event_type = isset($_GET['event_type']) ? sanitize_key($_GET['event_type']) : '';
         if(!in_array($event_type, ['subscribe', 'error', 'webhook_unsub', 'webhook_cleaned', 'test' ]))
             $event_type='';
-        $http_code = isset($_GET['http_code']) ? (absint)($_GET['http_code']) : 0;
+        $http_code = isset($_GET['http_code']) ? absint($_GET['http_code']) : 0;
         $from_date = isset($_GET['from_date']) ? sanitize_text_field($_GET['from_date']) : '';
         $to_date = isset($_GET['to_date']) ? sanitize_text_field($_GET['to_date']) : '';
         $page = max(1,(int)($_GET['paged'] ?? 1)); 
@@ -336,15 +349,8 @@ class Settings {
         }
 
         $rows = $wpdb->get_results($wpdb->prepare($sql_rows, array_merge($params, [$rows_per_page, $offset])),ARRAY_A);
-        //Form
-        echo "<form method='GET'>";
-
-        echo "<input type='hidden' name='page' value='mc-api-reports' />";
-        wp_nonce_field('mc_api_reports', 'mc_api_reports_nonce');
-
-        echo "<label for='event_type' >Event Type</label>";
-        echo "<select id='event_type' name='event_type' >";
-
+        
+        //Form vars for HTML template
         $select_opts = [
             '' => 'All',
             'subscribe' => 'Subscribe',
@@ -354,91 +360,15 @@ class Settings {
             'test' => 'Test',
         ];
 
-        foreach ($select_opts as $value => $label) {
-            $selected = $event_type === $value ? 'selected' : '';
-            echo "<option value='{$value}' {$selected}>{$label}</option>";
-        }
 
-        echo "</select>";
-        echo "<br>";
-
-        echo "<label for='http_code' >HTTP Code</label>";
-        echo "<input id='http_code' type='number' name='http_code' value='" . esc_attr($http_code) . "' />";
-        echo "<br>";
-        
-        echo "<label for='from_date' >From Date</label>";
-        echo "<input id='from_date' type='date' name='from_date' value='" . esc_attr($from_date) . "' />";
-        echo "<br>";
-
-        echo "<label for='to_date' >To Date</label>";
-        echo "<input id='to_date' type='date' name='to_date' value='" . esc_attr($to_date) . "' />";
-        echo "<br>";
-
-        echo "<button type='submit'>Submit</button>";
-        echo "<br>";
-
-        echo "<button type='submit' name='mc_export' value='1'>Export CSV</button>";
-        echo "<br>";
-
-        echo "</form>";
-
-        //Display table
+        //Display table vars for HTML template
         $first = max($offset+1,0);
         $last = min($offset + $rows_per_page, $total_rows);
-        if($total_rows > 0 )
-            echo "<p>Show {$first}-{$last} of {$total_rows} results</p>";
 
-        echo "<table class='widefat fixed striped'>";
-        echo "<thead>";
-        echo "<tr>";
-        echo "<th>ID</th>";
-        echo "<th>Timestamp</th>";
-        echo "<th>Event Type</th>";
-        echo "<th>Http Code</th>";
-        echo "<th>Endpoint</th>";
-        echo "<th>Email(hashed)</th>";
-        echo "<th>Message</th>";
-        echo "</tr>";
-        echo "</thead>";
-
-        echo "<tbody>";
-        if($rows){
-            
-            foreach ($rows as $event) {
-                echo "<tr>";
-                echo "<td>" . esc_html($event['id']) . "</td>";
-                echo "<td>" . esc_html($event['ts_utc']) . "</td>";
-                echo "<td>" . esc_html($event['event_type']) . "</td>";
-                echo "<td>" . esc_html($event['http_code']) . "</td>";
-                echo "<td>" . esc_html($event['endpoint']) . "</td>";
-                echo "<td>" . esc_html($event['email_hash']) . "</td>";
-                echo "<td>" . esc_html($event['message']) . "</td>";
-                echo "</tr>";
-            }
-        }else{
-            echo "<tr>";
-            echo "<td colspan='7'>" . "No events found" . "</td>";
-            echo "</tr>";
-
-        }
-
-        echo "</tbody>";
-        echo "</table>";
-
-        //Pagination
+        //Pagination vars for HTML template
         $base_url = menu_page_url('mc-api-reports', false);
-        if ($total_pages > 1){
-            echo '<div class="tablenav"><div class="tablenav-pages">';
-            echo paginate_links([
-                'base'      => add_query_arg('paged','%#%', $base_url),
-                'format'    => '',
-                'prev_text' => '«',
-                'next_text' => '»',
-                'total'     => $total_pages,
-                'current'   => $page,
-            ]);
-            echo '</div></div>';
-        }
+
+        include MC_API_PLUGIN_DIR_PATH . 'includes/templates/admin-reports.php';
 
     }
 }
