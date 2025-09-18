@@ -7,6 +7,7 @@ class Settings {
         add_action('admin_menu', [__CLASS__, 'add_menu_page']);
         add_action('admin_init', [__CLASS__, 'register_settings']);
         add_action('admin_post_' . MC_API_ACTIONS_SLUG, [__CLASS__, 'handle_test_connection']);
+        add_action('admin_post_mc_api_export', [__CLASS__, 'handle_export_csv']);
         add_action('admin_menu', [__CLASS__, 'add_submenu_page']);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_styles']);
     }
@@ -276,31 +277,12 @@ class Settings {
 
         global $wpdb;
         $table = $wpdb->prefix . 'mc_api_events';
-        $where = ['1=1'];
-        $params = [];
         $rows_per_page = 20;
 
-        if($event_type){
-            $where[] = 'event_type=%s';
-            $params[] = $event_type;
-        }
-
-        if($http_code){
-            $where[] = 'http_code=%d';
-            $params[] = $http_code;
-        }
-
-        if($from_date){
-            $where[] = 'ts_utc>=%s';
-            $params[] = $from_date . ' 00:00:00';
-        }
-
-        if($to_date){
-            $where[] = 'ts_utc<=%s';
-            $params[] = $to_date . ' 23:59:59';
-        }
-        
-        $where_sql = implode(' AND ', $where);
+         
+        $query_parts = self::get_filtered_events_query_parts();
+        $where_sql = $query_parts['where_sql'];
+        $params = $query_parts['params'];
 
         $sql_total = "SELECT count(*) 
                       FROM {$table} 
@@ -319,35 +301,7 @@ class Settings {
                 ORDER BY id DESC
                 LIMIT %d OFFSET %d";
 
-        //Export CSV
-        if(isset($_GET['mc_export']) && $_GET['mc_export'] === '1'){
-            $rows_csv = $wpdb->get_results($wpdb->prepare($sql_rows, array_merge($params, [5000, 0])),ARRAY_A);
-            $date = date('Y-m-d');
-            $filename = "mc-api-events-{$date}.csv";
-            nocache_headers();
-            header('Content-Type: text/csv; charset=utf-8');
-            header("Content-Disposition: attachment; filename={$filename}");
-            header("Pragma: no-cache");
-            header("Expires: 0");
-
-            $out = fopen('php://output', 'w');
-            fputcsv($out, ['ts_utc','event_type','http_code','endpoint','email_hash','message']);
-
-            foreach ($rows_csv as $row){
-                fputcsv($out,[ 
-                        $row['ts_utc'],
-                        $row['event_type'],
-                        $row['http_code'],
-                        $row['endpoint'],
-                        $row['email_hash'],
-                        $row['message']
-                ]);
-            }
-
-            fclose($out);
-            exit;
-        }
-
+        
         $rows = $wpdb->get_results($wpdb->prepare($sql_rows, array_merge($params, [$rows_per_page, $offset])),ARRAY_A);
         
         //Form vars for HTML template
@@ -371,4 +325,101 @@ class Settings {
         include MC_API_PLUGIN_DIR_PATH . 'includes/templates/admin-reports.php';
 
     }
+
+    public static function handle_export_csv() {
+        if (!current_user_can('manage_options')) {
+            wp_die('Not allowed.');
+        }
+
+        $nonce = isset($_POST['mc_api_reports_nonce']) ? wp_unslash($_POST['mc_api_reports_nonce']) : '';
+        if (!wp_verify_nonce($nonce, 'mc_api_reports')) {
+            wp_die('Invalid Request');
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'mc_api_events';
+
+        $query_parts = self::get_filtered_events_query_parts();
+        $where_sql = $query_parts['where_sql'];
+        $params = $query_parts['params'];
+
+        $sql_rows = "SELECT ts_utc, event_type, http_code, endpoint, email_hash, message
+                    FROM {$table}
+                    WHERE {$where_sql}
+                    ORDER BY id DESC
+                    LIMIT %d OFFSET %d";
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare($sql_rows, array_merge($params, [5000, 0])),
+            ARRAY_A
+        );
+
+        if (ob_get_length()) { @ob_end_clean(); }
+
+        $date = gmdate('Y-m-d');
+        $filename = "mc-api-events-{$date}.csv";
+
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header("Content-Disposition: attachment; filename={$filename}");
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['ts_utc','event_type','http_code','endpoint','email_hash','message']);
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                $row['ts_utc'],
+                $row['event_type'],
+                $row['http_code'],
+                $row['endpoint'],
+                $row['email_hash'],
+                $row['message'],
+            ]);
+        }
+        fclose($out);
+        exit;
+    }
+
+    private static function get_filtered_events_query_parts() {
+        $event_type = isset($_REQUEST['event_type']) ? sanitize_key($_REQUEST['event_type']) : '';
+        if (!in_array($event_type, ['subscribe', 'error', 'webhook_unsub', 'webhook_cleaned', 'test'], true)) {
+            $event_type = '';
+        }
+        $http_code = isset($_REQUEST['http_code']) ? absint($_REQUEST['http_code']) : 0;
+        $from_date = isset($_REQUEST['from_date']) ? sanitize_text_field($_REQUEST['from_date']) : '';
+        $to_date = isset($_REQUEST['to_date']) ? sanitize_text_field($_REQUEST['to_date']) : '';
+
+        $where = ['1=1'];
+        $params = [];
+
+        if ($event_type) {
+            $where[] = 'event_type=%s';
+            $params[] = $event_type;
+        }
+
+        if ($http_code) {
+            $where[] = 'http_code=%d';
+            $params[] = $http_code;
+        }
+
+        if ($from_date) {
+            $where[] = 'ts_utc>=%s';
+            $params[] = $from_date . ' 00:00:00';
+        }
+
+        if ($to_date) {
+            $where[] = 'ts_utc<=%s';
+            $params[] = $to_date . ' 23:59:59';
+        }
+
+        $where_sql = implode(' AND ', $where);
+
+        return [
+            'where_sql' => $where_sql,
+            'params' => $params
+        ];
+    }
+
+
 }

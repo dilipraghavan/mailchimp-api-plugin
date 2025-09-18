@@ -32,7 +32,15 @@
             <button type='submit' class='button'>Submit</button>
             <br>
 
-            <button type='submit' class='button button-secondary' name='mc_export' value='1'>Export CSV</button>
+            <button type='submit' 
+                    class='button button-secondary' 
+                    name='mc_export' 
+                    value='1'
+                    formaction="<?php echo esc_url( admin_url('admin-post.php?action=mc_api_export') ); ?>"
+                    formmethod="post"
+            >
+                Export CSV
+            </button>
             <br>
         </div>
     </form>
