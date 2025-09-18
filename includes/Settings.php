@@ -22,9 +22,12 @@ class Settings {
 
     public static function render_page(){
 
-        if($api_data = get_transient( 'mc_api_notice' )){
-            $msg = esc_html($api_data['msg']);
-            $type = esc_html($api_data['type']);
+        $notice = get_transient('mc_api_notice');
+        delete_transient('mc_api_notice');
+
+        if($notice){
+            $msg = esc_html($notice['msg']);
+            $type = esc_html($notice['type']);
             $banner_class = 'notice-info';
             if($type === 'success') 
                 $banner_class = 'notice-success';
@@ -33,39 +36,15 @@ class Settings {
                 $banner_class = 'notice-error';
 
             echo"<div class='notice {$banner_class} is-dismissible'><p>{$msg}</p></div>";
-            delete_transient('mc_api_notice');
+            
         }
-
-        
-        echo "<div class='wrap'>";
-        echo "<h1>Mailchimp API Integration</h1>";
         
         $creds = Credentials_Resolver::get_credentials();
-        if($creds['src'] === 'constant'){
-            echo "<p class='description'>Using constants from wp-config.php.</p>";
-        }
-        if($creds['src'] === 'env'){
-            echo "<p class='description'>Using environment variables.</p>";
-        }
+        $credentails_src = $creds['src'];
 
-        settings_errors();
-
-        //Form for API settings
-        echo "<form method='post' action='options.php'>";
-        settings_fields('mc_api_settings_group');
-        do_settings_sections(MC_API_SETTINGS_SLUG);
-        submit_button("Save Changes");
-        echo "</form>";
-
-
-        // Form to test connection
         $action_slug = esc_url(admin_url('admin-post.php?action=' . MC_API_ACTIONS_SLUG)); 
-        echo "<form method='POST' action='{$action_slug}'>";
-
-        wp_nonce_field('mc_api_conn', 'mc_api_nonce');
-        echo "<button type='submit'>Test Connection</button>";
-        echo "</form>";
-        echo "</div>";
+   
+        include MC_API_PLUGIN_DIR_PATH . 'includes/templates/admin-settings.php';
     }
 
     public static function register_settings(){
