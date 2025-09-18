@@ -1,0 +1,18 @@
+{
+  "name": "dilipraghavan/mailchimp-api-plugin",
+  "description": "A WordPress plugin to integrate with Mailchimp.",
+  "type": "wordpress-plugin",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "MC_API\\": "includes/"
+    }
+  },
+  "authors": [
+    {
+      "name": "Dilip Raghavan",
+      "email": "dilip@wpshiftstudio.com"
+    }
+  ],
+  "require": {}
+}
