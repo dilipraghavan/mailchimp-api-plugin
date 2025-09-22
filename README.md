@@ -18,30 +18,33 @@ A lightweight WordPress plugin for seamless integration with the Mailchimp marke
 
 ## 🛠 Installation
 
-### Method 1: The Easy Way
+There are two methods for installation depending on whether you are an end-user or a developer.
 
-1. Download the latest release of the plugin from the [GitHub repository](https://github.com/dilipraghavan/mailchimp-api-plugin/releases).
-2. Go to your WordPress Dashboard and navigate to **Plugins > Add New > Upload Plugin**.
-3. Select the downloaded ZIP file and click **Install Now**.
-4. Activate the plugin from your **Plugins** page.
+### For End-Users (Packaged Plugin)
 
-### Method 2: The Developer Way
+To install a ready-to-use version of the plugin, download the latest release from the [Releases page](https://github.com/dilipraghavan/mailchimp-api-plugin/releases). This version is pre-packaged with all dependencies included.
 
-1. Clone the repository into your WordPress plugins folder:
+1.  Download the `.zip` file from the latest release.
+2.  In the WordPress dashboard, go to **Plugins > Add New**.
+3.  Click **Upload Plugin**, select the downloaded `.zip` file, and click **Install Now**.
+4.  After installation, click **Activate Plugin**.
 
-   ```bash
-   git clone [https://github.com/dilipraghavan/mailchimp-api-plugin.git](https://github.com/dilipraghavan/mailchimp-api-plugin.git) wp-content/plugins/mailchimp-api-plugin
+### For Developers (with Composer)
 
-   ```
+This is the recommended method for developers who want to work with the source code or contribute to the plugin.
 
-2. Navigate to the plugin directory and install the dependencies:
-
-```bash
-cd wp-content/plugins/mailchimp-api-plugin
-composer install
-```
-
-3. Activate the plugin through the WordPress admin panel.
+1.  **Clone the Repository:** Clone the plugin from GitHub to your local machine using Git.
+    ```bash
+    git clone https://github.com/dilipraghavan/mailchimp-api-plugin.git wp-content/plugins/mailchimp-api-plugin
+    ```
+2.  **Install Dependencies:** Navigate into the cloned folder from your command line and run Composer to install the required libraries.
+    ```bash
+    cd mailchimp-api-plugin
+    composer install
+    ```
+3.  **Create ZIP Archive:** Create a `.zip` archive of the entire `mailchimp-api-plugin` folder. This zip file now contains all the necessary plugin files, including the `vendor` directory.
+4.  **Upload to WordPress:** In the WordPress dashboard, go to **Plugins > Add New**, click **Upload Plugin**, and select the `.zip` file you just created.
+5.  **Activate Plugin:** After installation, click **Activate Plugin**.
 
 ## ⚙️ Configuration
 
