@@ -111,9 +111,9 @@ class Settings {
         $creds = Credentials_Resolver::get_credentials();
         $mc_api_key = isset($creds['api_key']) ? esc_attr($creds['api_key']) : '';
         $mc_src = $creds['src'];
-        $disabled= $mc_src !== 'options' ? 'disabled' : '';
+        $disabled= ($mc_src === 'constant' || $mc_src === 'env') ? 'disabled' : '';
         echo "<input type='text' class='regular-text' name='mailchimp_api_key' value='{$mc_api_key}' {$disabled} autocomplete='off' >";
-        if($mc_src &&  $mc_src !== 'options'){
+        if($mc_src === 'constant' || $mc_src === 'env'){
             echo "<p>Override by removing constants and env vars.</p>";
         }
     }
@@ -150,9 +150,9 @@ class Settings {
         $creds = Credentials_Resolver::get_credentials();
         $mc_list_id = isset($creds['list_id']) ? esc_attr($creds['list_id']) : '';
         $mc_src = $creds['src'];
-        $disabled= $mc_src !== 'options' ? 'disabled' : '';
+        $disabled= ($mc_src === 'constant' || $mc_src === 'env') ? 'disabled' : '';
         echo "<input type='text' class='regular-text' name='mailchimp_list_id' value='{$mc_list_id}' {$disabled} autocomplete='off' >";
-        if($mc_src && $mc_src !== 'options'){
+        if($mc_src === 'constant' || $mc_src === 'env'){
             echo "<p>Override by removing constants and env vars.</p>";
         }
     }
