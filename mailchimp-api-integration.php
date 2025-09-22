@@ -2,7 +2,7 @@
 
 /**
  * 
- * Plugin Name: Plugin to integrate with Mailchimp
+ * Plugin Name: Mailchimp Connect
  * Description: Integrate WordPress websites with Mailchimp. Users can subscribe from a shortcode form. Admin can view status from dashboard and export reports. API keys are stored securely through env settings.
  * Version: 1.0.0
  * Requires at least: 6.0

@@ -113,7 +113,7 @@ class Settings {
         $mc_src = $creds['src'];
         $disabled= $mc_src !== 'options' ? 'disabled' : '';
         echo "<input type='text' class='regular-text' name='mailchimp_api_key' value='{$mc_api_key}' {$disabled} autocomplete='off' >";
-        if($mc_src !== 'options'){
+        if($mc_src &&  $mc_src !== 'options'){
             echo "<p>Override by removing constants and env vars.</p>";
         }
     }
