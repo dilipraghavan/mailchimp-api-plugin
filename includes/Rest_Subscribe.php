@@ -11,7 +11,6 @@ class Rest_Subscribe{
     }
 
     public static function register(){
-        error_log('MC_API register() firing');
         register_rest_route ( 
                             'mc-api/v1',
                             '/subscribe',
@@ -60,8 +59,6 @@ class Rest_Subscribe{
     }
 
     public static function subscribe($request){
-
-        error_log('Hit REST Subscribe');
 
         $email = $request->get_param('email');
         $consent = $request->get_param('consent');
@@ -121,11 +118,8 @@ class Rest_Subscribe{
     }
 
     public static function verify_nonce($request){
-        error_log('verify_nonce called');
         $nonce = $request->get_param('mc_nonce');
-        error_log('mc_nonce: ' . var_export($nonce, true));
         $ok = wp_verify_nonce($nonce, 'mc_api_public');
-        error_log('nonce valid? ' . var_export($ok, true));
         return $ok ? true : new WP_Error('rest_forbidden','Invalid or missing nonce.',['status'=>403]);
     }
 
