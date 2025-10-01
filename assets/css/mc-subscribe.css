@@ -32,7 +32,6 @@
 }
 
 #mc_email {
-  width: 100%;
   padding: 0.75rem;
   font-size: 1rem;
   border: 1px solid #ccc;
@@ -54,7 +53,9 @@
 }
 
 #mc_consent {
-  margin-right: 0.5rem;
+  height: 25px;
+  width: 25px;
+  margin-left: 50px;
 }
 
 .mc-consent-field label {
